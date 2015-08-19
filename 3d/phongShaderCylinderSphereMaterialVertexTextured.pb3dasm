@@ -1,0 +1,92 @@
+module_material_vertex_program phong
+
+    metadata
+        namespace const(string, "AIF Test")
+        vendor const(string, "Adobe")
+        version const(int, 1)
+    end_metadata
+    
+    transformations
+        SCF INTOSSA OPT(DCE* {APR DCE*}*)
+    end_transformations
+    
+    globals
+        global parameter float-4 cameraPosition
+            metadata
+                id const(string, "cameraPosition")
+            end_metadata
+        input image image-4 inputImage
+        global parameter float-4 lightPosition
+        global parameter float scalea
+        input vertex float-4 UVCoord
+            metadata
+                id const(string, "PB3D_UV")
+            end_metadata
+        input vertex float-4 vertexColor
+            metadata
+                id const(string, "PB3D_COLOR")
+            end_metadata
+        input vertex float-4 vertexNormal
+            metadata
+                id const(string, "PB3D_NORMAL")
+            end_metadata
+        input vertex float-4 vertexPosition
+            metadata
+                id const(string, "PB3D_POSITION")
+            end_metadata
+        interpolated float-4 color
+            metadata
+                id const(string, "_3_color")
+            end_metadata
+        interpolated float-4 eyeVec
+            metadata
+                id const(string, "_2_eyeVec")
+            end_metadata
+        interpolated float-4 interpolatedCoord
+            metadata
+                id const(string, "_4_interpolatedCoord")
+            end_metadata
+        interpolated float-4 lightDir
+            metadata
+                id const(string, "_1_lightDir")
+            end_metadata
+        interpolated float-4 normal
+            metadata
+                id const(string, "_0_normal")
+            end_metadata
+    end_globals
+    
+    functions
+        external_function void evaluateVertex()
+            body
+                basic_block entry%A !! outlets(basic%A)
+                    t-0 = allocNonSSA type(float-4) : float-4
+                    jump block(basic%A) : void
+                end_basic_block
+                basic_block basic%A !! inlets(entry%A) outlets(exit%A)
+                    _LD_t-1 = assign vertexPosition : float-4
+                    _mulResult%A-0 = mul vertexNormal, scalea : float-4
+                    _LD_t-2 = add _LD_t-1, _mulResult%A-0 : float-4
+                    _LD_t-3 = insertVE const(float, 0), _LD_t-2, const(int, 3) : float-4
+                    _LD_normal-1 = normalize _LD_t-3 : float-4
+                    _LD_eyeVec-1 = assign vertexPosition : float-4
+                    _LD_lightDir-1 = sub lightPosition, vertexPosition : float-4
+                    _LD_lightDir-2 = normalize _LD_lightDir-1 : float-4
+                    _LD_color-1 = assign vertexColor : float-4
+                    _LD_interpolatedCoord-1 = assign UVCoord : float-4
+                    jump block(exit%A) : void
+                end_basic_block
+                basic_block exit%A !! inlets(basic%A)
+                    moveToNonSSA _LD_normal-1, normal : void
+                    moveToNonSSA _LD_eyeVec-1, eyeVec : void
+                    moveToNonSSA _LD_lightDir-2, lightDir : void
+                    moveToNonSSA _LD_color-1, color : void
+                    moveToNonSSA _LD_interpolatedCoord-1, interpolatedCoord : void
+                    ret : void
+                end_basic_block
+            end_body
+        end_external_function
+    end_functions
+    
+end_module_material_vertex_program
+

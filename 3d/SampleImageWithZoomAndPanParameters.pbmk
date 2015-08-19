@@ -1,0 +1,57 @@
+/*****************************************************************************
+*
+* ADOBE SYSTEMS INCORPORATED
+* Copyright (C) 2011 Adobe Systems Incorporated
+* All Rights Reserved.
+*
+* NOTICE:  Adobe permits you to use, modify, and distribute this file in 
+* accordance with the terms of the Adobe license agreement accompanying it.  
+* If you have received this file from a source other than Adobe, then your 
+* use, modification, or distribution of it requires the prior written 
+* permission of Adobe.
+*
+*****************************************************************************/
+
+<languageVersion : 1.0;>
+material kernel simpleImageSampling
+<
+    namespace : "AIF Test";
+    vendor : "Adobe";
+    version : 1;
+>
+{
+    output float4 result;
+    input image4 inputImage;
+    input vertex float4 UVCoord;
+    interpolated float4 interpolatedCoord;
+    
+    parameter float zoomFactor
+    < minValue: 0.0;
+      maxValue: 2.0;
+      defaultValue: 1.0;>;
+      
+    parameter float2 panning
+    < minValue: float2(-1.0, -1.0);
+      maxValue: float2(1.0, 1.0);
+      defaultValue: float2(0.0, 0.0);>;
+    
+    void evaluateVertex()
+    {
+        interpolatedCoord = UVCoord;
+    }
+    
+    void evaluateFragment()
+    {
+        float cx = interpolatedCoord.x;
+        float cy = interpolatedCoord.y;
+
+		cx += panning.x;
+		cy += panning.y;
+
+        cx *= zoomFactor;
+        cy *= zoomFactor;
+        float2 coord = float2(cx, cy);
+        
+        result = sample(inputImage, coord);
+    }
+}

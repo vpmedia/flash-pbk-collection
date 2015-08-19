@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+/*****************************************************************************
+ *
+ * ADOBE SYSTEMS INCORPORATED
+ * Copyright (C) 2010 Adobe Systems Incorporated
+ * All Rights Reserved.
+ *
+ * NOTICE:  Adobe permits you to use, modify, and distribute this file in 
+ * accordance with the terms of the Adobe license agreement accompanying it.  
+ * If you have received this file from a source other than Adobe, then your 
+ * use, modification, or distribution of it requires the prior written 
+ * permission of Adobe.
+ *
+ *****************************************************************************/
+-->
+<graph name = "PixelateGraph"
+xmlns="http://ns.adobe.com/PixelBenderGraph/1.0">
+    <metadata name = "namespace" value =  "AIF"/>
+    <metadata name = "vendor" value = "Adobe Systems" />
+    <metadata name = "version" type = "int" value = "1" />
+
+    <!-- Parameters to the graph -->
+    // An input parameter used to specify the width and height of the 
+    // pixelation.  The parameters come directly from the user by way of the 
+    // UI that gets created for the filter.
+    <parameter type = "int" name = "dimension" >
+         <metadata name = "defaultValue" type = "int" value = "1" />
+         <metadata name = "minValue" type = "int" value = "1" />
+         <metadata name = "maxValue" type = "int" value = "100" />
+    </parameter>
+ 
+    <!-- Image inputs and outputs of the graph -->
+    <inputImage type = "image4" name = "inputImage" />
+    <outputImage type = "image4" name = "outputImage" />
+ 
+    <!-- Embedded kernel -->
+    <kernel>
+    <![CDATA[ 
+         <languageVersion : 1.0;>
+         kernel Pixelate 
+         <   
+           namespace:"AIF";
+           vendor:"Adobe Systems";
+           version:1;
+         >
+         {
+            parameter int dimension;
+
+            input image4 src;
+            output float4 dst;
+
+            // needed(): Indicates what area of the input is needed to fulfill the
+            //           requested output region.
+            region needed(region outputRegion, imageRef inputRef)
+            {
+                float dimAsFloat = float( dimension );
+                float4 regionBounds = bounds( outputRegion );
+                regionBounds = floor( regionBounds / dimAsFloat ) * dimAsFloat;
+
+                return region( regionBounds );
+            }
+
+            // changed(): Indicates what area of the output is affected by the 
+            //            specified input.
+            region changed(region inputRegion, imageRef inputRef)
+            {
+                // This calculation will slightly over-estimate the affected region in 
+                // some cases (i.e. it errs on the side of safety), however it is much 
+                // simpler than the exact calculation and therefore much more 
+                // likely to be correct
+                
+                float dimAsFloat = float( dimension );
+                float4 regionBounds = bounds( inputRegion );
+                regionBounds.zw += float2( dimAsFloat );
+                
+                return region( regionBounds );
+            }
+
+            // evaluatePixel(): The function of the filter that actually does the 
+            // processing of the image.  This function is called once 
+            // for each pixel of the output image.
+            void
+            evaluatePixel()
+            {
+                // Convert the dimension into a floating point value for use in 
+                // arithmetic.  To avoid sinister issues, all type conversions are 
+                // required to be explicit.
+                float dimAsFloat = float(dimension);
+    
+        
+                // Truncate the pixel location to the value at the top left corner
+                // of the square.
+                float2 sc = floor(outCoord() / float2(dimAsFloat, dimAsFloat));
+                sc *= dimAsFloat;
+            
+                // sample the input at the location and set the output to the sampled value.
+                dst = sampleNearest(src, sc);
+            }
+         }
+    ]]>
+    </kernel>
+
+    <!-- Instances of the nodes -->
+    <node id = "pixelateFilter" name ="Pixelate" namespace = "AIF" vendor = "Adobe Systems" version ="1" clientID ="ADBE Pixelate" >
+     <evaluateParameters>
+         <![CDATA[
+         void evaluateParameters()
+         {
+            pixelateFilter::dimension = dimension;
+         } 
+         ]]>
+     </evaluateParameters>
+    </node>
+
+    <!-- Connect the graph -->
+    <connect fromImage = "inputImage" toNode = "pixelateFilter" toInput = "src" />
+    <connect fromNode = "pixelateFilter" fromOutput = "dst" toImage = "outputImage" />
+</graph>

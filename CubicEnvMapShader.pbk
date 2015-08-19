@@ -1,0 +1,116 @@
+<languageVersion: 1.0;>
+kernel PlanarEnvMapCubeShader
+<
+	namespace: "com.derschmale.fp3d";
+	vendor: "Der Schmale";
+	version: 1;
+	description: "Applies an environment map on a planar surface. DisplayObject is expected to have the registration point in the center";
+>
+{
+	input image4 a;
+	input image3 left;
+	input image3 right;
+	input image3 back;
+	input image3 front;
+	input image3 top;
+	input image3 bottom;
+	output pixel4 dst;
+	
+	parameter float3 normal
+	<
+		minValue: float3(-1.0, -1.0, -1.0);
+		maxValue: float3(1.0, 1.0, 1.0);
+		defaultValue: float3(0.0, 0.0, 1.0);
+		description: "The display object's or face normal (inverted local Z-Axis)";
+	>;
+	
+	parameter float alpha
+	<
+		minValue: float(0.0);
+		maxValue: float(1.0);
+		defaultValue: float(0.5);
+		description: "The alpha of the environment map";
+	>;
+	
+	parameter float4x4 transformation
+	<
+		minValue: float4x4(-8000.0);
+		maxValue: float4x4(8000.0);
+		defaultValue: float4x4(0.0);
+		description: "The transformation matrix that transforms the displayObject to stage coordinates";
+	>;
+	
+	parameter float2 upperLeft
+	<
+		minValue: float2(-8000.0, -8000.0);
+		maxValue: float2(8000.0, 8000.0);
+		defaultValue: float2(0.0, 0.0);
+		description: "The 2D coordinates of the display object's top left corner";
+	>;
+	
+	parameter float cubeDim
+	<
+		minValue: float(0.0);
+		maxValue: float(1024.0);
+		defaultValue: float(160.0);
+		description: "The 2D coordinates of the display object's top left corner";
+	>;
+	
+	void evaluatePixel()
+	{
+		float2 coord2d = outCoord();
+		float2 localCoord2d = upperLeft+coord2d;
+		float3 view = normalize((transformation*float4(localCoord2d.x, localCoord2d.y, 0.0, 1.0)).xyz);
+		pixel3 reflection;
+		float2 reflMapCoord;
+		// determine the 3D location of the current pixel
+		float3 refl = view - 2.0*dot(normal, view)*normal;
+		refl.y = -refl.y;
+		// determine which face of the cube will be used
+		float maxcoord = abs(refl.x);
+		int face = refl.x > 0.0 ? 0 : 1;
+
+		float absN;
+		if ((absN = abs(refl.y)) > maxcoord) {
+			 maxcoord = absN;
+			 face = refl.y > 0.0? 2 : 3;
+		}
+		if ((absN = abs(refl.z)) > maxcoord) {
+			maxcoord = absN;
+			face = refl.z > 0.0? 4 : 5;
+		}
+		
+		float halfDim = cubeDim*.5;
+		float invMax = 1.0/maxcoord;
+		
+		// sample the cube
+		if (face == 0) {
+			reflMapCoord = float2(1.0-refl.z*invMax, 1.0-refl.y*invMax)*halfDim;
+			reflection = sampleNearest(right, reflMapCoord);
+		}
+		else if (face == 1) {
+			reflMapCoord = float2(1.0+refl.z*invMax, 1.0-refl.y*invMax)*halfDim;
+			reflection = sampleNearest(left, reflMapCoord);
+		}
+		else if (face == 2) {
+			reflMapCoord = float2(1.0+refl.x*invMax, 1.0+refl.z*invMax)*halfDim;
+			reflection = sampleNearest(top, reflMapCoord);
+		}
+		else if (face == 3) {
+			reflMapCoord = float2(1.0+refl.x*invMax, 1.0-refl.z*invMax)*halfDim;
+			reflection = sampleNearest(bottom, reflMapCoord);
+		}
+		else if (face == 4) {
+			reflMapCoord = float2(1.0+refl.x*invMax, 1.0-refl.y*invMax)*halfDim;
+			reflection = sampleNearest(back, reflMapCoord);
+		}
+		else if (face == 5) {
+			reflMapCoord = float2(1.0-refl.x*invMax, 1.0-refl.y*invMax)*halfDim;
+			reflection = sampleNearest(front, reflMapCoord);
+		}
+		
+		dst = sampleNearest(a, outCoord());
+		dst.rgb = (dst.rgb*(1.0-alpha)+reflection*alpha);
+		//dst.rgb = 0.5+view.xyz/2.0;
+	}
+}

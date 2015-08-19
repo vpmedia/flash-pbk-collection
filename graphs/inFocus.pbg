@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+/*****************************************************************************
+ *
+ * ADOBE SYSTEMS INCORPORATED
+ * Copyright (C) 2010 Adobe Systems Incorporated
+ * All Rights Reserved.
+ *
+ * NOTICE:  Adobe permits you to use, modify, and distribute this file in 
+ * accordance with the terms of the Adobe license agreement accompanying it.  
+ * If you have received this file from a source other than Adobe, then your 
+ * use, modification, or distribution of it requires the prior written 
+ * permission of Adobe.
+ *
+ *****************************************************************************/
+-->
+
+<graph name = "InFocus" xmlns="http://ns.adobe.com/PixelBenderGraph/1.0">
+
+    <metadata name = "namespace" value = "AIF" />
+    <metadata name = "vendor" value = "Adobe" />
+    <metadata name = "version" type = "int" value = "1" />
+    <metadata name = "clientID" value = "ADBE In Focus" />
+
+    <!-- Parameters to the graph -->
+    // do blur the spot or the background
+    <parameter type = "bool" name = "invert" >
+         <metadata name = "defaultValue" type = "bool" value = "false" />
+         <metadata name = "minValue" type = "bool" value = "false" />
+         <metadata name = "maxValue" type = "bool" value = "true" />
+    </parameter>
+
+    // An input parameter used to specify the weight of each input image to the output.
+    // center point of the clear spot
+    <parameter type = "float2" name = "center" >
+         <metadata name = "defaultValue" type = "float2" value = "200.0, 200.0" />
+         <metadata name = "minValue" type = "float2" value = "0.0, 0.0" />
+         <metadata name = "maxValue" type = "float2" value = "500.0, 500.0" />
+    </parameter>
+
+    // the circle area centered at center and with radius radius1 is clear
+    <parameter type = "float" name = "radius1" >
+         <metadata name = "defaultValue" type = "float" value = "50.0" />
+         <metadata name = "minValue" type = "float" value = "0.0" />
+         <metadata name = "maxValue" type = "float" value = "400.0" />
+    </parameter>
+
+    // the area between radius2 and radius1 is the fade-off region
+    <parameter type = "float" name = "radius2" >
+         <metadata name = "defaultValue" type = "float" value = "70.0" />
+         <metadata name = "minValue" type = "float" value = "0.0" />
+         <metadata name = "maxValue" type = "float" value = "400.0" />
+    </parameter>
+    
+    // the weight of the pixel
+    <parameter type = "float" name = "weight" >
+         <metadata name = "defaultValue" type = "float" value = "0.2" />
+         <metadata name = "minValue" type = "float" value = "0.0" />
+         <metadata name = "maxValue" type = "float" value = "1.0" />
+    </parameter>
+
+    <!-- Image inputs and outputs of the graph -->
+    <inputImage  type = "image4" name = "src" />
+    <outputImage type = "image4" name = "dst" />
+
+    <!-- Embedded kernel -->
+    <kernel>
+        <![CDATA[
+            <languageVersion : 1.0;>
+
+             #define NUM_PIXELS 5
+
+                kernel InFocus
+                <
+                    namespace : "AIF";
+                    vendor : "Adobe";
+                    version : 1;
+                    clientID : "ADBE In Focus";
+                    description : "Creates a clear spot, which is followed by a fade-off region, the rest of the image is blurred";
+                >
+                {
+                    parameter bool invert;
+                    parameter float2 center;
+                    parameter float radius1;
+                    parameter float radius2;
+                    parameter float weight;
+
+                    input  image4 inputImage;
+                    output pixel4 outputPixel;
+                    
+                    // needed(): Indicates what area of the input is needed to fulfill the
+                    //           requested output region.
+                    region needed(region outputRegion, imageRef inputRef)
+                    {
+                        return outset( outputRegion, float2( NUM_PIXELS ) );
+                    }
+
+                    // changed(): Indicates what area of the output is affected by the 
+                    //            specified input.
+                    region changed(region inputRegion, imageRef inputRef)
+                    {
+                        return outset( inputRegion, float2( NUM_PIXELS ) );
+                    }
+                    
+                    void
+                    evaluatePixel()
+                    {
+                        float2 coord = outCoord();
+                        float distanceFromCenter = length(coord - center);
+
+                        if((!invert && (distanceFromCenter > radius1)) || (invert && (distanceFromCenter < radius1 )))
+                        {
+                            // blurry circle - horizontal blur
+                            pixel4 sum = float4(0.0);
+                            for(int i=1; i<NUM_PIXELS; i++)
+                            {
+                                // pixels to the right
+                                sum += sampleLinear(inputImage, coord + float(i));
+                                // pixels to the left
+                                sum += sampleLinear(inputImage, coord - float(i));
+                            }
+                            outputPixel = weight*sampleLinear(inputImage, coord) + (1.0 - weight)*sum/(2.0*float(NUM_PIXELS-1));
+                        }
+                        else if((!invert && (distanceFromCenter > radius2))|| (invert && (distanceFromCenter < radius2 )))
+                        {
+                            // fade-out region, less blur
+                            pixel4 sum = float4(0.0);
+                            for(int i=1; i<NUM_PIXELS; i++)
+                            {
+                                // pixels to the right
+                                sum += sampleLinear(inputImage, coord + float(i));
+                                // pixels to the left
+                                sum += sampleLinear(inputImage, coord - float(i));
+                            }
+                            float weight2 = weight + (1.0 - weight)* (distanceFromCenter- radius1)/(radius2-radius1);
+                            outputPixel = weight2*sampleLinear(inputImage, coord) + (1.0- weight2)*sum/(2.0*float(NUM_PIXELS-1));
+                        }
+                        else
+                        {
+                            // pixel unchanged
+                            outputPixel = sampleLinear(inputImage, coord);
+                        }
+                    }
+                }
+        ]]>
+    </kernel>
+
+    <!-- Instances of the nodes -->
+    <node id = "inFocusFilter" name = "InFocus" vendor="Adobe" namespace="AIF" version="1" clientID ="ADBE In Focus">
+     <evaluateParameters>
+         <![CDATA[
+         void evaluateParameters()
+         {
+            inFocusFilter::invert = invert;
+            inFocusFilter::center = center;
+            inFocusFilter::radius1 = radius1;
+            inFocusFilter::radius2 = radius2;
+            inFocusFilter::weight = weight;
+         } 
+         ]]>
+     </evaluateParameters>
+    </node>
+
+    <!-- Connect the graph -->
+    <connect fromImage = "src" toNode = "inFocusFilter" toInput = "inputImage" />
+    <connect fromNode = "inFocusFilter" fromOutput = "outputPixel" toImage = "dst" />
+    
+</graph>

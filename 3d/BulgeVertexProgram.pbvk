@@ -1,0 +1,46 @@
+/*****************************************************************************
+*
+* ADOBE SYSTEMS INCORPORATED
+* Copyright (C) 2011 Adobe Systems Incorporated
+* All Rights Reserved.
+*
+* NOTICE:  Adobe permits you to use, modify, and distribute this file in 
+* accordance with the terms of the Adobe license agreement accompanying it.  
+* If you have received this file from a source other than Adobe, then your 
+* use, modification, or distribution of it requires the prior written 
+* permission of Adobe.
+*
+*****************************************************************************/
+
+<languageVersion : 1.0;>
+vertex kernel Bulge
+<
+    namespace : "AIF Test";
+    vendor : "Adobe";
+    version : 1;
+>
+{    
+    parameter float scale;
+    parameter float4x4 objectToClipSpaceTransform;
+
+    input vertex float4 vertexPosition
+    <
+        id : "PB3D_POSITION";
+    >;
+    input vertex float4 vertexNormal
+    <
+        id : "PB3D_NORMAL";
+    >;
+
+    output float4 vertexClipPosition;
+
+    void evaluateVertex() 
+    {
+        float4 t = vertexPosition;
+        t += vertexNormal * scale;
+        
+        vertexClipPosition = t * objectToClipSpaceTransform;
+    }
+}
+
+

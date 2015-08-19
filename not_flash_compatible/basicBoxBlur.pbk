@@ -1,0 +1,115 @@
+/*****************************************************************************
+ *
+ * ADOBE SYSTEMS INCORPORATED
+ * Copyright (C) 2010 Adobe Systems Incorporated
+ * All Rights Reserved.
+ *
+ * NOTICE:  Adobe permits you to use, modify, and distribute this file in 
+ * accordance with the terms of the Adobe license agreement accompanying it.  
+ * If you have received this file from a source other than Adobe, then your 
+ * use, modification, or distribution of it requires the prior written 
+ * permission of Adobe.
+ *
+ *****************************************************************************/
+
+<languageVersion: 1.0;>
+ 
+// basicBoxBlur: A simple example to demonstrate how to implement a 1 
+//                iteration box blur.  The kernel demonstrates how to implement 
+//                a convolution using for loops.
+kernel BasicBoxBlur
+<   namespace : "AIF";
+    vendor : "Adobe Systems";
+    version : 2;
+    description : "variable Radius Box Blur"; >
+{
+    // A parameter that represents the radius of the blur in both the X and Y
+    // directions.
+    parameter float blurRadius
+    <
+        minValue:float(0.0);
+        maxValue:float(25.0);
+        defaultValue:float(5.0);
+    >;
+
+    // A dependent value.  These are calculated in the evaluateDependents() 
+    // function and save us from having to perform repetitive calculations
+    // for each pixel.
+    dependent int radiusAsInt;
+
+    // evaluateDependents(): Built-in function to do any pre-processing of the
+    //                       parameters.  Usage of this function helps avoid 
+    //                       repeating any necessary instructions per pixel.
+    //                       In a filter as simple as this, the extra cycles
+    //                       are probably not necessary, but it serves as a 
+    //                       good example.
+    void
+    evaluateDependents()
+    {
+        // Convert the dimension into a integer value for use in the iteration 
+        // over the kernel window.  All type conversions are required to be 
+        // explicit.
+        radiusAsInt = int(ceil(blurRadius));
+    }
+
+    input image4 src;
+    output float4 dst;
+    
+// Region functions are not available in Flash targets, so we only define 
+// the functions if we are executing on a different backend.
+#if !AIF_FLASH_TARGET
+
+    // needed(): Indicates what area of the input is needed to fulfill the
+    //           requested output region.  In this case, we consider a
+    //           radius sized area of the input for each output pixel, so we 
+    //           need to outset the area by one.
+    region needed(region outputRegion, imageRef inputRef)
+    {
+        float2 singlePixel = pixelSize(src);
+        return outset(outputRegion, float2(singlePixel.x * ceil(blurRadius), singlePixel.y * ceil(blurRadius)));
+    }
+
+    // changed(): Indicates what area of the output is affected by the 
+    //            specified input.  In this case, we will blur out the image 
+    //            by the size of the radius, so the output is the input outset by 
+    //            one.
+    region changed(region inputRegion, imageRef inputRef)
+    {
+        float2 singlePixel = pixelSize(src);
+        return outset(inputRegion, float2(singlePixel.x * ceil(blurRadius), singlePixel.y * ceil(blurRadius)));
+    }
+
+#endif
+    
+    // evaluatePixel(): The function of the filter that actually does the 
+    //                  processing of the image.  This function is called once 
+    //                  for each pixel of the output image.
+    void
+    evaluatePixel()
+    {
+        // Containers for both the accumulated color as well as the number of 
+        // pixels touched.
+        float denominator = 0.0;
+        float4 colorAccumulator = float4(0.0, 0.0, 0.0, 0.0);              
+        
+        float2 singlePixel = pixelSize(src);
+        
+        // Iterate through the kernel window, adding up the samples in 
+        // that location.
+        for(int i = -radiusAsInt; i <= radiusAsInt; i++)
+        {
+            for(int j = -radiusAsInt; j <= radiusAsInt; j++)
+            {    
+                colorAccumulator += sampleNearest(src, 
+                    outCoord() + float2(float(i) * singlePixel.x, float(j) * singlePixel.y));
+                denominator++;
+            }
+        }
+        
+        // calculate the resultant pixel value which is the accumulated color
+        // divided by the total number of pixels.  
+        // In this case, the denominator is 9.
+        dst = colorAccumulator / denominator;
+    }
+}
+

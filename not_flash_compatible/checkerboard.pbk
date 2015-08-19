@@ -1,0 +1,73 @@
+/*****************************************************************************
+ *
+ * ADOBE SYSTEMS INCORPORATED
+ * Copyright (C) 2010 Adobe Systems Incorporated
+ * All Rights Reserved.
+ *
+ * NOTICE:  Adobe permits you to use, modify, and distribute this file in 
+ * accordance with the terms of the Adobe license agreement accompanying it.  
+ * If you have received this file from a source other than Adobe, then your 
+ * use, modification, or distribution of it requires the prior written 
+ * permission of Adobe.
+ *
+ *****************************************************************************/
+
+<languageVersion: 1.0;>
+ 
+// checkerboard: A simple example to demonstrate the use of the kernel language to 
+//               generate images.
+kernel Checkerboard
+<
+    namespace : "Pixel Bender Samples";
+    vendor : "Adobe";
+    version : 1;
+>
+
+{
+    // An input parameter used to specify the width of the checks.  
+    // The parameters come directly from the user by way of the UI that gets 
+    // created for the filter.
+    parameter float2 checkerSize    
+    <
+        minValue:float2(1.0, 1.0);
+        maxValue:float2(1024.0, 1024.0); 
+        defaultValue:float2(10.0, 10.0);
+    >;
+
+    parameter float4 color1
+    <
+        minValue:float4(0.0, 0.0, 0.0, 0.0);
+        maxValue:float4(1.0, 1.0, 1.0, 1.0); 
+        defaultValue:float4(0.75, 0.0, 0.0, 1.0);
+    >;
+    parameter float4 color2
+    <
+        minValue:float4(0.0, 0.0, 0.0, 0.0);
+        maxValue:float4(1.0, 1.0, 1.0, 1.0); 
+        defaultValue:float4(0.0, 0.0, 0.75, 1.0);
+    >;
+
+
+    region generated()
+    {
+        return everywhere();
+    }
+
+    output float4 dst;
+    
+    // evaluatePixel(): The function of the kernel that actually does the 
+    //                  processing of the image.  This function is called once 
+    //                  for each pixel of the output image.
+    void
+    evaluatePixel()
+    {
+        float2 checkerLocation = floor(outCoord() / checkerSize);
+
+        float2 modLocation = mod(checkerLocation, float2(2.0, 2.0));
+
+        bool setColor1 = (modLocation == float2(0.0, 0.0)) || (modLocation == float2(1.0, 1.0));
+
+        dst = setColor1 ? color1 : color2;
+    }
+}
+

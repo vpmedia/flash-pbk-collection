@@ -1,0 +1,271 @@
+<languageVersion: 1.0;>
+ 
+kernel SmartSSAO
+<   namespace : "com.smart-page-net.shaders";
+    vendor : "smart-page.net - Jan Frischmuth";
+    version : 1;
+    description : "Computes screen space ambien occlusion from a depth buffer"; >
+{
+    parameter float A_bias
+    <
+        minValue:       float(0.0);
+        maxValue:       float(100);
+        defaultValue:   float(10);
+    >;
+	
+	parameter float B_radius
+    <
+        minValue:       float(0.0);
+        maxValue:       float(10.0);
+        defaultValue:   float(1.0);
+    >;
+    
+    parameter float C_bleed
+    <
+        minValue:       float(0.01);
+        maxValue:       float(3.0);
+        defaultValue:   float(2.0);
+    >;
+    
+    parameter float2 D_lightxy
+    <
+        minValue:       float2(-1.0,-1.0);
+        maxValue:       float2(1.0,1.0);
+        defaultValue:   float2(0.0,0.0);
+    >;
+    
+    parameter float E_noise
+    <
+        minValue:       float(-0.1);
+        maxValue:       float(0.1);
+        defaultValue:   float(0.02);
+    >;
+    
+    parameter float F_brightness
+    <
+        minValue:       float(0.0);
+        maxValue:       float(2.0);
+        defaultValue:   float(1.0);
+    >;
+
+    parameter float G_contrast
+    <
+        minValue:       float(0.0);
+        maxValue:       float(5.0);
+        defaultValue:   float(1.0);
+    >;
+
+    input image4 depthmap;
+    output float4 dst;
+
+    const float3 unpack = float3( 255.0/256.0, 255.0/(256.0*256.0), 255.0/(256.0*256.0*256.0) ); 
+    
+    const float sphere_x0 =  -0.326212;
+    const float sphere_y0 = -0.405805;        
+    const float sphere_x1 =  -0.840144;
+    const float sphere_y1 = -0.073580;        
+    const float sphere_x2 = -0.695914;
+    const float sphere_y2 = 0.457137;        
+    const float sphere_x3 = -0.203345;
+    const float sphere_y3 = 0.620716;        
+    const float sphere_x4 = 0.962340;
+    const float sphere_y4 = -0.194983;        
+    const float sphere_x5 = 0.473434;
+    const float sphere_y5 = -0.480026;        
+    const float sphere_x6 = 0.519456;
+    const float sphere_y6 = 0.767022;        
+    const float sphere_x7 = 0.185461;
+    const float sphere_y7 = -0.893124;   
+    const float sphere_x8 = 0.507431;
+    const float sphere_y8 = 0.064425;  
+    const float sphere_x9 = 0.896420;
+    const float sphere_y9 = 0.412458;  
+    const float sphere_x10 = -0.321940;
+    const float sphere_y10 = -0.932615;  
+    const float sphere_x11 = -0.791559;
+    const float sphere_y11 = -0.597705;
+
+
+    void evaluatePixel(){    
+            
+        float zbu,pd,bl,sd,dc,zd,tmp;
+        float2 pt,rnd;
+        
+        rnd = float2(0.5+(fract(sin(dot(outCoord().xy ,float2(12.9898,78.233))) * 43758.5453))*0.5,0.5+(fract(sin(dot(outCoord().xy ,float2(12.9898,78.233))) * 43758.5453))*0.5);    
+        zbu = dot(sampleNearest(depthmap, outCoord()).xyz,unpack);     
+        if(zbu==0.0) zbu=0.0001;
+
+        //for (int i = 0; i < 12; i++){
+        
+            pt = float2(sphere_x0,sphere_y0)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            
+            pt = float2(sphere_x1,sphere_y1)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            
+            pt = float2(sphere_x2,sphere_y2)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            
+            pt = float2(sphere_x3,sphere_y3)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            pt = float2(sphere_x4,sphere_y4)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            
+            pt = float2(sphere_x5,sphere_y5)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            
+            pt = float2(sphere_x6,sphere_y6)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            
+            pt = float2(sphere_x7,sphere_y7)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            
+            pt = float2(sphere_x8,sphere_y8)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            
+            pt = float2(sphere_x9,sphere_y9)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            
+            pt = float2(sphere_x10,sphere_y10)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+            
+            
+            pt = float2(sphere_x11,sphere_y11)+rnd+float2(D_lightxy.x-1.0,D_lightxy.y*-1.0-1.0);
+            
+            sd = (dot(sampleNearest(depthmap,outCoord().xy+pt*B_radius/zbu).xyz,unpack)+E_noise*rnd.x) * (A_bias*10.0);
+            dc = zbu * (A_bias*10.0) - sd;
+            
+            if(zbu==0.0) dc=0.0;
+            if(sd==0.0)  dc=0.0;
+            
+            dc = dc * (2.0 - (dc/C_bleed));
+            zd = 0.5 * max(dc+F_brightness, 0.0);
+            bl +=1.0/(1.0+zd*zd);
+            
+        //}
+        bl/=12.0;
+        tmp=pow(bl, G_contrast);
+        dst=float4(tmp,tmp,tmp,1.0);
+    }  
+}
+

@@ -1,0 +1,97 @@
+/*****************************************************************************
+*
+* ADOBE SYSTEMS INCORPORATED
+* Copyright (C) 2011 Adobe Systems Incorporated
+* All Rights Reserved.
+*
+* NOTICE:  Adobe permits you to use, modify, and distribute this file in 
+* accordance with the terms of the Adobe license agreement accompanying it.  
+* If you have received this file from a source other than Adobe, then your 
+* use, modification, or distribution of it requires the prior written 
+* permission of Adobe.
+*
+*****************************************************************************/
+
+<languageVersion : 1.0;>
+material kernel phong
+<
+    namespace : "AIF Test";
+    vendor : "Adobe";
+    version : 1;
+>
+{
+    input vertex float4 vertexNormal	
+    <
+        id : "PB3D_NORMAL";
+    >;
+    input vertex float4 vertexPosition
+    <
+        id : "PB3D_POSITION";
+    >;
+    input vertex float4 vertexColor	
+    <
+        id : "PB3D_COLOR";
+    >;
+    input vertex float4 UVCoord
+    <
+        id : "PB3D_UV";
+    >;
+
+    input image4 inputImage;
+
+    interpolated float4 normal;
+    interpolated float4 lightDir;
+    interpolated float4 eyeVec;
+    interpolated float4 color;
+    interpolated float4 interpolatedCoord;
+
+    parameter float4 lightPosition;
+    parameter float4 cameraPosition
+    <
+        id: "cameraPosition";
+    >;
+    parameter float scalea;
+
+    output float4 result;
+	
+    void evaluateVertex()
+    {
+        float4 t = vertexPosition;
+        t += vertexNormal * scalea;
+        t.a = 0.0;
+
+        normal = normalize( t );
+        
+        eyeVec = vertexPosition;
+        lightDir = lightPosition - vertexPosition;
+        lightDir = normalize(lightDir);
+        color = vertexColor;
+        interpolatedCoord = UVCoord;
+    }
+
+    void evaluateFragment() 
+    {
+        float4 color1 = sample(inputImage, float2(interpolatedCoord.x, interpolatedCoord.y));
+
+        result = float4(0,0,0,0);
+
+        // There's a bug when we have two intepolateds in the same statement, so assign one to a temporary
+        float4 cameraPositionTemp = cameraPosition;
+        float4 viewDirection = eyeVec - cameraPositionTemp;
+        viewDirection = normalize(viewDirection);
+
+        float4 lightDirTemp = lightDir;
+        float lambertTerm = dot(normal , lightDirTemp);
+        lambertTerm = abs(lambertTerm);
+        result += color1 * lambertTerm ;
+
+        float4 R = lightDir - (2. * dot(normal, lightDirTemp)) * normal;
+        float specular = dot(viewDirection,R);
+
+        specular = abs(specular);
+        specular = pow( max(specular, 0.),35.);
+        result += result * specular * color1 ;
+        result.w = 1. ;
+    }
+}
+

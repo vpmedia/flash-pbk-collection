@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+/*****************************************************************************
+ *
+ * ADOBE SYSTEMS INCORPORATED
+ * Copyright (C) 2010 Adobe Systems Incorporated
+ * All Rights Reserved.
+ *
+ * NOTICE:  Adobe permits you to use, modify, and distribute this file in 
+ * accordance with the terms of the Adobe license agreement accompanying it.  
+ * If you have received this file from a source other than Adobe, then your 
+ * use, modification, or distribution of it requires the prior written 
+ * permission of Adobe.
+ *
+ *****************************************************************************/
+-->
+<graph name = "SepiaTwirlGraph" xmlns="http://ns.adobe.com/PixelBenderGraph/1.0">
+    <metadata name = "namespace" value =  "AIF"/>
+    <metadata name = "vendor" value = "Adobe Systems" />
+    <metadata name = "version" type = "int" value = "1" />
+
+    <!-- Parameters to the graph -->
+    // Sepia parameters
+    // An input parameter used to specify the intensity of the sepia coloration.
+    // The parameters come directly from the user by way of the UI that gets
+    // created for the filter.
+    <parameter type = "float" name = "intensity" >
+         <metadata name = "defaultValue" type = "float" value = "0.1" />
+         <metadata name = "minValue" type = "float" value = "0.1" />
+         <metadata name = "maxValue" type = "float" value = "1.0" />
+    </parameter>
+
+    // Twirl parameters
+    // An input parameter to specify the radius of the twirl effect.
+    // For this parameter, we're using metadata to indicate the minimum,
+    // maximum, and default values, so that the tools can set the values 
+    // in the correctly in the UI for the filter.  
+    // NOTE: This parameter indicates how many pixel values out from the 
+    // center location we would like to twirl.  The radius is in the pixel
+    // coordinate space to ensure that we always rotate in a circle.  For 
+    // more information regarding the coordinate spaces, please consult the 
+    // pixel bender spec.
+    <parameter type = "float" name = "radius" >
+         <metadata name = "defaultValue" type = "float" value = "0.1" />
+         <metadata name = "minValue" type = "float" value = "0.1" />
+         <metadata name = "maxValue" type = "float" value = "2048.0" />
+    </parameter>
+    // An input parameter to specify the center of the twirl effect.
+    // As above, we're using metadata to indicate the minimum,
+    // maximum, and default values, so that the tools can set the values 
+    // in the correctly in the UI for the filter.
+    <parameter type = "float2" name = "center" >
+         <metadata name = "defaultValue" type = "float2" value = "256.0, 256.0" />
+         <metadata name = "minValue" type = "float2" value = "0.0, 0.0" />
+         <metadata name = "maxValue" type = "float2" value = "2048.0, 2048.0" />
+    </parameter>
+    // An input parameter to specify the angle that we would like to twirl.
+    // For this parameter, we're using metadata to indicate the minimum,
+    // maximum, and default values, so that the tools can set the values 
+    // in the correctly in the UI for the filter.
+    <parameter type = "float" name = "twirlAngle" >
+         <metadata name = "defaultValue" type = "float" value = "90.0" />
+         <metadata name = "minValue" type = "float" value = "0.0" />
+         <metadata name = "maxValue" type = "float" value = "360.0" />
+    </parameter>
+    // An input parameter that indicates how we want to vary the twirling
+    // within the radius.  We've added support to modulate by one of two 
+    // functions, a gaussian or a sinc function.  Since Flash does not support
+    // bool parameters, we instead are using this as an int with two possible
+    // values. Setting this parameter to be 1 will
+    // cause the gaussian function to be used, unchecking it will cause 
+    // the sinc function to be used.
+    <parameter type = "int" name = "gaussOrSinc" >
+         <metadata name = "defaultValue" type = "int" value = "0" />
+         <metadata name = "minValue" type = "int" value = "0" />
+         <metadata name = "maxValue" type = "int" value = "1" />
+    </parameter>
+
+
+    <!-- Image inputs and outputs of the graph -->
+    <inputImage type = "image4" name = "inputImage" />
+    <outputImage type = "image4" name = "outputImage" />
+ 
+    <!-- Embedded kernel -->
+    <kernel>
+    <![CDATA[ 
+         <languageVersion : 1.0;>
+         kernel Sepia 
+         <   
+           namespace:"AIF";
+           vendor:"Adobe Systems";
+           version:1;
+         >
+         {
+            parameter float intensity;
+
+            input image4 src;
+            output float4 dst;
+
+            void
+            evaluatePixel()
+            {
+                // temporary variables to hold the colors.
+                float4 rgbaColor;
+                float4 yiqaColor;
+
+                // The language implements matrices in column major order.  This means
+                // that mathematically, the transform will look like the following:
+                // |Y|   |0.299     0.587   0.114   0.0| |R|
+                // |I| = |0.596     -0.275  -0.321  0.0| |G|
+                // |Q|   |0.212     -0.523  0.311   0.0| |B|
+                // |A|   |0.0       0.0     0.0     1.0| |A|
+                float4x4 YIQMatrix = float4x4(
+                    0.299,  0.596,  0.212, 0.000,
+                    0.587, -0.275, -0.523, 0.000,
+                    0.114, -0.321,  0.311, 0.000,
+                    0.000,  0.000,  0.000, 1.000
+                );
+
+                // Similar to the above matrix, the matrix is in column order.  Thus, 
+                // the transform will look like the following:
+                // |R|   |1.0   0.956   0.621   0.0| |Y|
+                // |G| = |1.0   -0.272  -0.647  0.0| |I|
+                // |B|   |1.0   -1.11   1.70    0.0| |Q|
+                // |A|   |0.0   0.0     0.0     1.0| |A|
+                float4x4 inverseYIQ = float4x4(
+                    1.0,    1.0,    1.0,    0.0,
+                    0.956, -0.272, -1.10,  0.0,
+                    0.621, -0.647,  1.70,   0.0,
+                    0.0,    0.0,    0.0,    1.0
+                );
+
+                // get the pixel value at our current location
+                rgbaColor = sampleNearest(src, outCoord());
+                yiqaColor = YIQMatrix * rgbaColor;
+
+                // Here we set the I value of the YIQ color to the intensity
+                // specified in the UI.  This is a good demonstration of how 
+                // to use swizzling to access vector elements.  The different
+                // options are the following:
+                //    rgba, xyzw, stuv  where:
+                //    r, x, or s correspond to the first element
+                //    g, y, or t correspond to the second element
+                //    etc.
+                yiqaColor.y = intensity; 
+                // zero out the Q to apply the sepia tone
+                yiqaColor.z = 0.0;
+        
+                // convert back to RGBA and set the output value to the modified color.
+                dst = inverseYIQ * yiqaColor;
+            }
+         }
+    ]]>
+    </kernel>
+
+
+    <!-- Embedded kernel -->
+    <kernel>
+    <![CDATA[ 
+         <languageVersion : 1.0;>
+         kernel Twirl 
+         <   
+           namespace:"AIF";
+           vendor:"Adobe Systems";
+           version:1;
+           clientID:"ADBE Twirl";
+           description : "twist an image around";
+         >
+         {
+            // define PI for the degrees to radians calculation
+            const float PI = 3.14159265;
+            
+            // An input parameter to specify the radius of the twirl effect.
+            // For this parameter, we're using metadata to indicate the minimum,
+            // maximum, and default values, so that the tools can set the values 
+            // in the correctly in the UI for the filter.  
+            // NOTE: This parameter indicates how many pixel values out from the 
+            // center location we would like to twirl.  The radius is in the pixel
+            // coordinate space to ensure that we always rotate in a circle.  For 
+            // more information regarding the coordinate spaces, please consult the 
+            // pixel bender spec.
+            parameter float radius;
+            parameter float2 center;
+            parameter float twirlAngle;
+            parameter int gaussOrSinc;
+
+            input image4 src;
+            output float4 dst;
+
+            // Region functions are not available in Flash targets, so we only define 
+            // the functions if we are executing on a different backend.
+            #if !AIF_FLASH_TARGET
+            
+                // needed(): Indicates what area of the input is needed to fulfill the
+                //           requested output region.  In this case, we consider a
+                //           radius = 1.0 area of the input for each output pixel, so we 
+                //           need to outset the area by one.
+                region needed(region outputRegion, imageRef inputRef)
+                {
+                    // if we have a gaussian function, negligible rotation occurs at 3 * radius
+                    // for a sinc function, we want a radius where the value is < 0.03.  That
+                    // happens at a factor of 33.3 times the radius.
+                    float2 fallOffPoint = pixelSize(src);
+                    fallOffPoint *= radius;
+                    if(gaussOrSinc == 0)
+                        fallOffPoint *= 3.0;
+                    else
+                        fallOffPoint *= 33.3;
+                        
+                    region rotatedRegion = region(float4(center.x - fallOffPoint.x, 
+                                                         center.y - fallOffPoint.y,
+                                                         center.x + fallOffPoint.x, 
+                                                         center.y + fallOffPoint.y));     
+                    return union(outputRegion, rotatedRegion);
+                }
+            
+                // changed(): Indicates what area of the output is affected by the 
+                //            specified input.  In this case, we will blur out the image 
+                //            by exactly one pixel, so the output is the input outset by 
+                //            one.
+                region changed(region inputRegion, imageRef inputRef)
+                {    
+                    // if we have a gaussian function, negligible rotation occurs at 3 * radius
+                    // for a sinc function, we want a radius where the value is < 0.03.  That
+                    // happens at a factor of 33.3 times the radius.
+                    float2 fallOffPoint = pixelSize(src);
+                    fallOffPoint *= radius;
+                    if(gaussOrSinc == 0)
+                        fallOffPoint *= 3.0;
+                    else
+                        fallOffPoint *= 33.3;
+                        
+                    region rotatedRegion = region(float4(center.x - fallOffPoint.x, 
+                                                         center.y - fallOffPoint.y,
+                                                         center.x + fallOffPoint.x, 
+                                                         center.y + fallOffPoint.y));   
+                    return union(inputRegion, rotatedRegion);
+                }
+            
+            #endif
+            
+            // evaluatePixel(): The function of the filter that actually does the 
+            //                  processing of the image.  This function is called once 
+            //                  for each pixel of the output image.
+            void
+            evaluatePixel()
+            {
+                // convert the angle to radians
+                float twirlAngleRadians = radians(twirlAngle);
+        
+                // adjust the radius value from pixel coordinates to world coordinates
+                // to do this, we multiply by the pixel size.
+                float adjustedRadius = length(radius * pixelSize(src));
+        
+                // calculate where we are relative to the center of the twirl
+                float2 relativePos = outCoord() - center;
+                
+                // calculate the absolute distance from the center normalized 
+                // by the twirl radius.
+                float distFromCenter = length( relativePos );
+                distFromCenter /= adjustedRadius; 
+                
+                // modulate the angle based on either a gaussian or a sync.
+                float adjustedRadians;
+                
+                // precalculate either the gaussian or the sinc weight
+                float sincWeight = sin( distFromCenter ) * twirlAngleRadians / ( distFromCenter );
+                float gaussWeight = exp( -1.0 * distFromCenter * distFromCenter ) * twirlAngleRadians;
+                
+                // protect the algorithm from a 1 / 0 error
+                adjustedRadians = (distFromCenter == 0.0) ? twirlAngleRadians : sincWeight;
+                
+                // switch between a gaussian falloff or a sinc fallof
+                adjustedRadians = (gaussOrSinc == 1) ? adjustedRadians : gaussWeight;
+                
+                // rotate the pixel sample location.
+                float cosAngle = cos( adjustedRadians );
+                float sinAngle = sin( adjustedRadians );
+                
+                float2x2 rotationMat = float2x2(
+                    cosAngle,   sinAngle,
+                    -sinAngle,  cosAngle
+                );
+                
+                relativePos = rotationMat * relativePos; 
+                
+                // sample and set as the output color.  since relativePos
+                // is related to the center location, we need to add it back in.
+                // We use linear sampling to smooth out some of the pixelation.
+                dst = sampleLinear( src, relativePos + center );
+            }
+         }
+    ]]>
+    </kernel>
+
+
+    <!-- Instances of the nodes -->
+    <node id = "filterSepia" name ="Sepia" namespace = "AIF" vendor = "Adobe Systems" version ="1" clientID ="ADBE Sepia" >
+     <evaluateParameters>
+         <![CDATA[
+         void evaluateParameters()
+         {
+            filterSepia::intensity = intensity;
+         } 
+         ]]>
+     </evaluateParameters>
+    </node>
+    <node id = "filterTwirl" name ="Twirl" namespace = "AIF" vendor = "Adobe Systems" version ="1" clientID ="ADBE Twirl" >
+     <evaluateParameters>
+         <![CDATA[
+         void evaluateParameters()
+         {
+            filterTwirl::gaussOrSinc = gaussOrSinc;
+            filterTwirl::radius = radius;
+            filterTwirl::center = center;
+            filterTwirl::twirlAngle = twirlAngle;
+         } 
+         ]]>
+     </evaluateParameters>
+    </node>
+    
+    <!-- Connect the graph -->
+    <connect fromImage = "inputImage" toNode = "filterSepia" toInput = "src" />
+    <connect fromNode = "filterSepia" fromOutput = "dst" toNode = "filterTwirl" toInput = "src" />
+    <connect fromNode = "filterTwirl" fromOutput = "dst" toImage = "outputImage" />
+</graph>
